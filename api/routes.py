@@ -18,10 +18,11 @@ from .config import BaseConfig
 rest_api = Api(version='1.0', title='Gira API')
 users_api = rest_api.namespace('Users Endpoints', path='/api/users', description='Api endpoints for user related operations')
 project_api = rest_api.namespace('Project Endpoints', path='/api/project', description='Api endpoints for project related operations')
+issue_api = rest_api.namespace('Issue Endpoints', path='/api/issue', description='Api endpoints for issue related operations')
 
 
 '''
-    Flask-Restx models for api request and response data
+    Flask-Restx Users models for api request and response data
 '''
 
 signup_model = users_api.model('SignUpModel', {"username": fields.String(required=True, min_length=2, max_length=32),
@@ -38,6 +39,10 @@ user_edit_model = users_api.model('UserEditModel', {"userID": fields.String(requ
                                                    "email": fields.String(required=True, min_length=4, max_length=64)
                                                    })
 
+'''
+    Flask-Restx Project models for api request and response data
+'''
+
 project_create_model = project_api.model('ProjectCreateModel', {"project_name": fields.String(required=True, min_length=1, max_length=32)})
 
 project_view_model = project_api.model('ProjectViewModel', {"projectID": fields.String(required=True, min_length=1, max_length=32)})
@@ -47,6 +52,26 @@ project_edit_model = project_api.model('ProjectEditModel', {"projectID": fields.
                                                          })
 
 project_delete_model = project_api.model('ProjectDeleteModel', {"projectID": fields.String(required=True, min_length=1, max_length=32)})
+
+'''
+    Flask-Restx Issue models for api request and response data
+'''
+
+issue_create_model = issue_api.model('IssueCreateModel', {"issue_title": fields.String(required=True, min_length=1, max_length=32),
+                                                          "issue_type": fields.String(required=True, enum=('Bug', 'Improvement', 'Feature')),
+                                                          "parent_project": fields.String(required=True, min_length=1, max_length=32)
+                                                         })
+
+issue_view_model = issue_api.model('IssueViewModel', {"issueID": fields.String(required=True, min_length=1, max_length=32)})
+
+issue_edit_model = issue_api.model('IssueEditModel', {"issueID": fields.String(required=True, min_length=1, max_length=32),
+                                                      "issue_title": fields.String(required=False, min_length=1, max_length=32),
+                                                      "issue_type": fields.String(required=False, enum=('Bug', 'Improvement', 'Feature')),
+                                                      "issue_status": fields.String(required=False, enum=('To Do', 'In Progress', 'Done')),
+                                                      "parent_project": fields.String(required=False, min_length=1, max_length=32)
+                                                      })
+
+issue_delete_model = issue_api.model('IssueDeleteModel', {"issueID": fields.String(required=True, min_length=1, max_length=32)})
 
 '''
    Helper function for JWT token required
@@ -90,9 +115,8 @@ def token_required(f):
 
 
 '''
-    Flask-Restx routes
+    Flask-Restx Users API routes
 '''
-
 
 @users_api.route('/register')
 class Register(Resource):
@@ -122,7 +146,6 @@ class Register(Resource):
         return {"success": True,
                 "userID": new_user.id,
                 "msg": "The user was successfully registered"}, 200
-
 
 @users_api.route('/login')
 class Login(Resource):
@@ -158,7 +181,6 @@ class Login(Resource):
                 "token": token,
                 "user": user.toJSON()}, 200
 
-
 @users_api.route('/edit')
 class EditUser(Resource):
     '''
@@ -184,7 +206,6 @@ class EditUser(Resource):
 
         return {"success": True}, 200
 
-
 @users_api.route('/logout')
 class LogoutUser(Resource):
     '''
@@ -203,6 +224,10 @@ class LogoutUser(Resource):
         self.save()
 
         return {"success": True}, 200
+
+'''
+    Flask-Restx Project API routes
+'''
 
 @project_api.route('/create')
 class CreateProject(Resource):
@@ -309,7 +334,7 @@ class UpdateProject(Resource):
                         "msg": "No such project exists in the scope of the user"}, 404
 
 @project_api.route('/delete')
-class UpdateProject(Resource):
+class DeleteProject(Resource):
     '''
         Deletes(Soft Delete) an existing project using 'ProjectDeleteModel' input
     '''
@@ -337,3 +362,163 @@ class UpdateProject(Resource):
         else:
             return {"success": False,
                         "msg": "No such project exists in the scope of the user"}, 404
+
+'''
+    Flask-Restx Issue API routes
+'''
+
+@issue_api.route('/create')
+class CreateIssue(Resource):
+    '''
+        Creates a new issue using 'IssueCreateModel' input
+    '''
+
+    @project_api.expect(issue_create_model, validate=True)
+    @token_required
+    def post(self, current_user):
+
+        req_data = request.get_json()
+
+        _issue_title = req_data.get('issue_title')
+        _issue_type = req_data.get('issue_type')
+        _parent_project = req_data.get('parent_project')
+
+        existing_project = Project.get_by_id(_parent_project, self.id)
+        if not existing_project:
+            return {"success": False,
+                    "msg": "No such project exists in the scope of the user, cannot create the issue"}, 400
+        else:         
+            new_issue = Issue(issue_title = _issue_title, issue_type = _issue_type,
+                            parent_project = _parent_project, created_by = self.id)
+            new_issue.save()
+            existing_project.increment_issue_count()
+            existing_project.save()
+
+            return {"success": True,
+                    "issueID": new_issue.id,
+                    "issue_title": new_issue.issue_title,
+                    "issue_type": new_issue.issue_type,
+                    "issue_status": new_issue.issue_status,
+                    "parent_project": new_issue.parent_project,
+                    "created_by": new_issue.created_by,
+                    "msg": "Issue successfully created"}, 200
+
+@issue_api.route('/view')
+class ViewIssue(Resource):
+    '''
+        View information of a issue that a user has access to
+    '''
+    
+    @issue_api.expect(issue_view_model, validate=True)
+    @token_required
+    def get(self, current_user):
+
+        req_data = request.get_json()
+
+        _issue_id = req_data.get('issueID')
+
+        requested_issue = Issue.get_by_id(_issue_id)
+
+        if requested_issue:
+            _parent_project_id = requested_issue.parent_project
+            parent_project = Project.get_by_id(_parent_project_id, self.id)
+            if parent_project:
+                return {"success": True,
+                        "issue": requested_issue.toJSON(),
+                        "msg": "Issue content returned successfully"}, 200
+            else:
+                return {"success": False,
+                        "msg": "Cannot reach issue since user has no access to parent project"}, 404
+        else:
+            return {"success": False,
+                    "msg": "No such issue found in this project"}, 404
+
+@issue_api.route('/edit')
+class UpdateIssue(Resource):
+    '''
+        Updates an existing issue using 'IssueEditModel' input
+    '''
+
+    @issue_api.expect(issue_edit_model, validate=True)
+    @token_required
+    def post(self, current_user):
+
+        req_data = request.get_json()
+
+        _issue_id = req_data.get('issueID')
+        _new_issue_title = req_data.get('issue_title')
+        _new_issue_type = req_data.get('issue_type')
+        _new_issue_status= req_data.get('issue_status')
+        _new_issue_parent= req_data.get('parent_project')
+
+        issue_to_edit = Issue.get_by_id(_issue_id)
+
+        if issue_to_edit:
+            _parent_project_id = issue_to_edit.parent_project
+            parent_project = Project.get_by_id(_parent_project_id, self.id)
+            if parent_project:
+                success_msg_content = "Successfully updated"
+                if _new_issue_title:
+                    issue_to_edit.set_issue_title(_new_issue_title)
+                    success_msg_content = success_msg_content + " issue title"
+                if _new_issue_type:
+                    issue_to_edit.set_issue_type(_new_issue_type)
+                    success_msg_content = success_msg_content + " issue type"                    
+                if _new_issue_status:
+                    issue_to_edit.set_issue_status(_new_issue_status)
+                    success_msg_content = success_msg_content + " issue status"
+                if _new_issue_parent:
+                    new_parent_project = Project.get_by_id(_new_issue_parent, self.id)
+                    if new_parent_project:
+                        issue_to_edit.update_parent_project(_new_issue_parent)
+                        parent_project.decrement_issue_count()
+                        parent_project.save()
+                        new_parent_project.increment_issue_count()
+                        new_parent_project.save()
+                        success_msg_content = success_msg_content + " parent project"
+                    else:
+                        return {"success": False,
+                                "msg": "Cannot change to new parent project since it is not accessible by user"}, 404
+                issue_to_edit.save()                    
+                return {"success": True,
+                        "updated issue": issue_to_edit.toJSON(),
+                        "msg": success_msg_content}, 200
+            else:
+                return {"success": False,
+                        "msg": "Cannot reach issue since user has no access to parent project"}, 404
+        else:
+            return {"success": False,
+                    "msg": "No such issue found in this project"}, 404
+
+@issue_api.route('/delete')
+class DeleteIssue(Resource):
+    '''
+        Deletes(Soft Delete) an existing issue using 'IssueDeleteModel' input
+    '''
+
+    @issue_api.expect(issue_delete_model, validate=True)
+    @token_required
+    def delete(self, current_user):
+
+        req_data = request.get_json()
+
+        _issue_id = req_data.get('issueID')
+
+        issue_to_delete = Issue.get_by_id(_issue_id)
+        
+        if issue_to_delete:
+            _parent_project_id = issue_to_delete.parent_project
+            parent_project = Project.get_by_id(_parent_project_id, self.id)
+            if parent_project:
+                issue_to_delete.delete_issue()
+                issue_to_delete.save()
+                parent_project.decrement_issue_count()
+                parent_project.save()
+                return {"success": True,
+                        "msg": "Issue deleted successfully"}, 200
+            else:
+                return {"success": False,
+                        "msg": "Cannot reach issue since user has no access to parent project"}, 404
+        else:
+            return {"success": False,
+                    "msg": "No such issue found in this project"}, 404
