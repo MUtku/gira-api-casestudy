@@ -50,6 +50,7 @@ class Users(db.Model):
     
     def delete_user(self):
         self.deleted = True
+        self.jwt_auth_active = False
 
     @classmethod
     def get_by_id(cls, id):
@@ -78,7 +79,7 @@ class JWTTokenBlocklist(db.Model):
     created_at = db.Column(db.DateTime(), nullable=False)
 
     def __repr__(self):
-        return f"Expired Token: {self.jwt_token}"
+        return f'Expired Token: {self.jwt_token}'
 
     def save(self):
         db.session.add(self)
@@ -94,7 +95,7 @@ class Project(db.Model):
 
 
     def __repr__(self):
-        return f"Project {self.project_name}"
+        return f'Project {self.project_name}'
 
     def save(self):
         db.session.add(self)
@@ -115,13 +116,18 @@ class Project(db.Model):
 
     def delete_project(self):
         self.deleted = True
-        related_issues = db.session.query(Issue.id).filter.by(project=self.id)
-        for issue_id in related_issues:
-            Issue.get_by_id(issue_id).delete_issue()
             
     @classmethod
-    def get_by_id(cls, id):
-        return cls.query.get_or_404(id)
+    def get_by_id(cls, project_id, creator_id):
+        return cls.query.filter_by(id = project_id, created_by=creator_id, deleted=False).first()
+    
+    @classmethod
+    def get_by_name(cls, name, creator_id):
+        return cls.query.filter_by(project_name=name, created_by=creator_id, deleted=False).first()
+    
+    @classmethod
+    def get_by_cerator(cls, creator_id):
+        return cls.query.filter_by(created_by=creator_id, deleted=False)
 
     def toDICT(self):
 
@@ -146,7 +152,7 @@ class Issue(db.Model):
     deleted = db.Column(db.Boolean, default=False, nullable=False)
 
     def __repr__(self):
-        return f"Project {self.project_name}"
+        return f'Issue {self.issue_title}'
 
     def save(self):
         db.session.add(self)
@@ -166,11 +172,14 @@ class Issue(db.Model):
     
     def delete_issue(self):
         self.deleted = True
-        Project.get_by_id(self.parent_project).decrement_issue_count()
 
     @classmethod
     def get_by_id(cls, id):
         return cls.query.get_or_404(id)
+
+    @classmethod
+    def get_issues_by_project_id(cls, project_id):
+        return cls.query.filter_by(parent_project=project_id, deleted=False)
 
     def toDICT(self):
 
