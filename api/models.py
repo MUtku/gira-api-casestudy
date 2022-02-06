@@ -145,7 +145,7 @@ class Issue(db.Model):
     id = db.Column(db.Integer(), primary_key=True)
     issue_title = db.Column(db.String(32), nullable=False)
     issue_type = db.Column(db.String(16), nullable=False)
-    issue_status = db.Column(db.String(16), nullable=False)
+    issue_status = db.Column(db.String(16), default="To Do", nullable=False)
     parent_project = db.Column(db.Integer(), db.ForeignKey(Project.id), nullable=False)
     created_by = db.Column(db.Integer(), db.ForeignKey(Users.id), nullable=False)
     date_created = db.Column(db.DateTime(), default=datetime.utcnow)
@@ -174,8 +174,8 @@ class Issue(db.Model):
         self.deleted = True
 
     @classmethod
-    def get_by_id(cls, id):
-        return cls.query.get_or_404(id)
+    def get_by_id(cls, issue_id):
+        return cls.query.filter_by(id = issue_id, deleted=False).first()
 
     @classmethod
     def get_issues_by_project_id(cls, project_id):
@@ -189,6 +189,7 @@ class Issue(db.Model):
         cls_dict['issue_type'] = self.issue_type
         cls_dict['issue_status'] = self.issue_status
         cls_dict['parent_project'] = self.parent_project
+        cls_dict['created_by'] = self.created_by
 
         return cls_dict
 
