@@ -147,7 +147,6 @@ class Register(Resource):
 
             new_user.set_password(_password)
             new_user.save()
-            rest_api.logger.info('Registered User Successfully ')
             return {"success": True,
                     "userID": new_user.id,
                     "msg": "The user was successfully registered"}, 200
@@ -217,7 +216,7 @@ class EditUser(Resource):
                 new_email_exists = Users.get_by_email(_new_email)
                 if new_email_exists:
                         return {"success": False,
-                        "msg": "Email already taken"}, 400
+                                "msg": "Email already taken"}, 400
                 else:
                     self.update_email(_new_email)
                     success_msg = success_msg + 'email '
