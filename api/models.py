@@ -50,15 +50,18 @@ class Users(db.Model):
     
     def delete_user(self):
         self.deleted = True
-        self.jwt_auth_active = False
 
     @classmethod
     def get_by_id(cls, id):
-        return cls.query.get_or_404(id)
+        return cls.query.filter_by(id=id, deleted=False)
 
     @classmethod
     def get_by_email(cls, email):
-        return cls.query.filter_by(email=email).first()
+        return cls.query.filter_by(email=email, deleted=False).first()
+    
+    @classmethod
+    def get_by_username(cls, username):
+        return cls.query.filter_by(username=username, deleted=False).first()
 
     def toDICT(self):
 
