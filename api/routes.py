@@ -430,7 +430,7 @@ class CreateIssue(Resource):
 @issue_api.route('/view')
 class ViewIssue(Resource):
     '''
-        View information of a issue that a user has access to
+        View information of an issue that a user has access to
     '''
     
     @issue_api.expect(issue_view_model, validate=True)
