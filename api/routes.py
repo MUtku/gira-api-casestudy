@@ -35,8 +35,9 @@ login_model = users_api.model('LoginModel', {"email": fields.String(required=Tru
                                             })
 
 user_edit_model = users_api.model('UserEditModel', {"userID": fields.String(required=True, min_length=1, max_length=32),
-                                                   "username": fields.String(required=True, min_length=2, max_length=32),
-                                                   "email": fields.String(required=True, min_length=4, max_length=64)
+                                                   "username": fields.String(required=False, min_length=2, max_length=32),
+                                                   "email": fields.String(required=False, min_length=4, max_length=64),
+                                                   "password": fields.String(required=False, min_length=4, max_length=16)
                                                    })
 
 '''
@@ -133,19 +134,23 @@ class Register(Resource):
         _email = req_data.get('email')
         _password = req_data.get('password')
 
-        user_exists = Users.get_by_email(_email)
-        if user_exists:
+        email_exists = Users.get_by_email(_email)
+        username_exists = Users.get_by_username(_username)
+        if email_exists:
             return {"success": False,
                     "msg": "Email already taken"}, 400
+        elif username_exists:
+            return {"success": False,
+                    "msg": "Username already taken"}, 400
+        else:
+            new_user = Users(username=_username, email=_email)
 
-        new_user = Users(username=_username, email=_email)
-
-        new_user.set_password(_password)
-        new_user.save()
-
-        return {"success": True,
-                "userID": new_user.id,
-                "msg": "The user was successfully registered"}, 200
+            new_user.set_password(_password)
+            new_user.save()
+            rest_api.logger.info('Registered User Successfully ')
+            return {"success": True,
+                    "userID": new_user.id,
+                    "msg": "The user was successfully registered"}, 200
 
 @users_api.route('/login')
 class Login(Resource):
@@ -195,21 +200,44 @@ class EditUser(Resource):
 
         _new_username = req_data.get('username')
         _new_email = req_data.get('email')
+        _new_password = req_data.get('password')
 
-        if _new_username:
-            self.update_username(_new_username)
+        if _new_username or _new_email or _new_password:
+            success_msg = 'Successfully updated '       
+            if _new_username:
+                new_username_exists = Users.get_by_username(_new_username)
+                if new_username_exists:
+                    return {"success": False,
+                            "msg": "Username already taken"}, 400
+                else:
+                    self.update_username(_new_username)
+                    success_msg = success_msg + 'username '
 
-        if _new_email:
-            self.update_email(_new_email)
+            if _new_email:
+                new_email_exists = Users.get_by_email(_new_email)
+                if new_email_exists:
+                        return {"success": False,
+                        "msg": "Email already taken"}, 400
+                else:
+                    self.update_email(_new_email)
+                    success_msg = success_msg + 'email '
 
-        self.save()
+            if _new_password:
+                self.set_password(_new_password)
+                success_msg = success_msg + 'password '
 
-        return {"success": True}, 200
+            self.save()
+        else:
+            success_msg = 'Nothing to update' 
+
+        return {"success": True,
+                "user": self.toJSON(),
+                "msg": success_msg}, 200
 
 @users_api.route('/logout')
 class LogoutUser(Resource):
     '''
-        Logs out User using 'logout_model' input
+        Logs out the currently logged in User 
     '''
     
     @token_required
@@ -223,7 +251,8 @@ class LogoutUser(Resource):
         self.set_jwt_auth_active(False)
         self.save()
 
-        return {"success": True}, 200
+        return {"success": True,
+                "msg": "Successfully logged out the user"}, 200
 
 '''
     Flask-Restx Project API routes
@@ -457,29 +486,32 @@ class UpdateIssue(Resource):
             _parent_project_id = issue_to_edit.parent_project
             parent_project = Project.get_by_id(_parent_project_id, self.id)
             if parent_project:
-                success_msg_content = "Successfully updated"
-                if _new_issue_title:
-                    issue_to_edit.set_issue_title(_new_issue_title)
-                    success_msg_content = success_msg_content + " issue title"
-                if _new_issue_type:
-                    issue_to_edit.set_issue_type(_new_issue_type)
-                    success_msg_content = success_msg_content + " issue type"                    
-                if _new_issue_status:
-                    issue_to_edit.set_issue_status(_new_issue_status)
-                    success_msg_content = success_msg_content + " issue status"
-                if _new_issue_parent:
-                    new_parent_project = Project.get_by_id(_new_issue_parent, self.id)
-                    if new_parent_project:
-                        issue_to_edit.update_parent_project(_new_issue_parent)
-                        parent_project.decrement_issue_count()
-                        parent_project.save()
-                        new_parent_project.increment_issue_count()
-                        new_parent_project.save()
-                        success_msg_content = success_msg_content + " parent project"
-                    else:
-                        return {"success": False,
-                                "msg": "Cannot change to new parent project since it is not accessible by user"}, 404
-                issue_to_edit.save()                    
+                if _new_issue_title or _new_issue_type or _new_issue_status or _new_issue_parent:
+                    success_msg_content = "Successfully updated"
+                    if _new_issue_title:
+                        issue_to_edit.set_issue_title(_new_issue_title)
+                        success_msg_content = success_msg_content + " issue title"
+                    if _new_issue_type:
+                        issue_to_edit.set_issue_type(_new_issue_type)
+                        success_msg_content = success_msg_content + " issue type"                    
+                    if _new_issue_status:
+                        issue_to_edit.set_issue_status(_new_issue_status)
+                        success_msg_content = success_msg_content + " issue status"
+                    if _new_issue_parent:
+                        new_parent_project = Project.get_by_id(_new_issue_parent, self.id)
+                        if new_parent_project:
+                            issue_to_edit.update_parent_project(_new_issue_parent)
+                            parent_project.decrement_issue_count()
+                            parent_project.save()
+                            new_parent_project.increment_issue_count()
+                            new_parent_project.save()
+                            success_msg_content = success_msg_content + " parent project"
+                        else:
+                            return {"success": False,
+                                    "msg": "Cannot change to new parent project since it is not accessible by user"}, 404
+                    issue_to_edit.save()
+                else:
+                    success_msg_content = "Nothing to update"                    
                 return {"success": True,
                         "updated issue": issue_to_edit.toJSON(),
                         "msg": success_msg_content}, 200
