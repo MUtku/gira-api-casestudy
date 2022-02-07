@@ -242,11 +242,6 @@ class LogoutUser(Resource):
     @token_required
     def post(self, current_user):
 
-        _jwt_token = request.headers["authorization"]
-
-        jwt_block = JWTTokenBlocklist(jwt_token=_jwt_token, created_at=datetime.now(timezone.utc))
-        jwt_block.save()
-
         self.set_jwt_auth_active(False)
         self.save()
 
@@ -276,14 +271,15 @@ class CreateProject(Resource):
         if project_exists:
             return {"success": False,
                     "msg": "A project with the same name already exists"}, 400
-        new_project = Project(project_name = _project_name, created_by=self.id)
-        new_project.save()
+        else:
+            new_project = Project(project_name = _project_name, created_by=self.id)
+            new_project.save()
 
-        return {"success": True,
-                "projectID": new_project.id,
-                "project_name": new_project.project_name,
-                "created_by": new_project.created_by,
-                "msg": "Project successfully created"}, 200
+            return {"success": True,
+                    "projectID": new_project.id,
+                    "project_name": new_project.project_name,
+                    "created_by": new_project.created_by,
+                    "msg": "Project successfully created"}, 200
         
 @project_api.route('/listall')
 class ListAllProjects(Resource):

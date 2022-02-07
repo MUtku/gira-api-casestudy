@@ -77,7 +77,7 @@ def auth_token_new_1(client):
     yield data["token"]
 
 '''
-    Tests For User Endpoint
+    Tests For Users Endpoint
 '''
 def test_user_signup(client):
     """
@@ -296,3 +296,186 @@ def test_user_logout(client, auth_token_new_1):
     assert response.status_code == 200
     assert "Successfully logged out the user" in data["msg"]
 
+'''
+    Tests For Project Endpoint
+'''
+def test_project_create(client, auth_token_new_1):
+    """
+    Tests /project/create API using valid data
+    """
+    response = client.post(
+        "api/project/create",
+        data=json.dumps(
+            {
+                "project_name": "test_proj_1"
+            }
+        ),
+        headers={"authorization":auth_token_new_1},
+        content_type="application/json")
+
+    data = json.loads(response.data.decode())
+    assert "Project successfully created" in data["msg"]
+    assert response.status_code == 200
+
+def test_project_create_existing_name(client, auth_token_new_1):
+    """
+    Tests /project/create API using vexisting project name
+    """
+    response = client.post(
+        "api/project/create",
+        data=json.dumps(
+            {
+                "project_name": "test_proj_1"
+            }
+        ),
+        headers={"authorization":auth_token_new_1},
+        content_type="application/json")
+
+    data = json.loads(response.data.decode())
+    assert "A project with the same name already exists" in data["msg"]
+    assert response.status_code == 400
+
+def test_project_list_all_projects(client, auth_token_new_1):
+    """
+    Tests /project/listall API using valid data
+    """
+    response = client.get(
+        "api/project/listall",
+        data=json.dumps(
+            {}
+        ),
+        headers={"authorization":auth_token_new_1},
+        content_type="application/json")
+
+    data = json.loads(response.data.decode())
+    assert "Projects of the current user successfully listed" in data["msg"]
+    assert response.status_code == 200
+
+def test_project_view_project(client, auth_token_new_1):
+    """
+    Tests /project/view API using valid data
+    """
+    response = client.get(
+        "api/project/view",
+        data=json.dumps(
+            {
+                "projectID":"1"
+            }
+        ),
+        headers={"authorization":auth_token_new_1},
+        content_type="application/json")
+
+    data = json.loads(response.data.decode())
+    assert "Project content returned successfully" in data["msg"]
+    assert response.status_code == 200
+
+def test_project_view_project_not_in_scope(client, auth_token_new_1):
+    """
+    Tests /project/view API using a prroject id out of user scope
+    """
+    response = client.get(
+        "api/project/view",
+        data=json.dumps(
+            {
+                "projectID":"3"
+            }
+        ),
+        headers={"authorization":auth_token_new_1},
+        content_type="application/json")
+
+    data = json.loads(response.data.decode())
+    assert "No such project found in the scope of this user" in data["msg"]
+    assert response.status_code == 404
+
+def test_project_edit_valid_project_valid_name(client, auth_token_new_1):
+    """
+    Tests /project/edit API using valid data
+    """
+    response = client.post(
+        "api/project/edit",
+        data=json.dumps(
+            {
+                "projectID":"1",
+                "project_name":"new_proj_name"
+            }
+        ),
+        headers={"authorization":auth_token_new_1},
+        content_type="application/json")
+
+    data = json.loads(response.data.decode())
+    assert "Project successfully edited" in data["msg"]
+    assert response.status_code == 200
+
+def test_project_edit_valid_project_existing_name(client, auth_token_new_1):
+    """
+    Tests /project/edit API using existing project name
+    """
+    response = client.post(
+        "api/project/edit",
+        data=json.dumps(
+            {
+                "projectID":"1",
+                "project_name":"new_proj_name"
+            }
+        ),
+        headers={"authorization":auth_token_new_1},
+        content_type="application/json")
+
+    data = json.loads(response.data.decode())
+    assert "A project with the same name already exists" in data["msg"]
+    assert response.status_code == 400
+
+def test_project_edit_out_of_scope_project_valid_name(client, auth_token_new_1):
+    """
+    Tests /project/edit API using out of scope project id
+    """
+    response = client.post(
+        "api/project/edit",
+        data=json.dumps(
+            {
+                "projectID":"3",
+                "project_name":"test_proj_12"
+            }
+        ),
+        headers={"authorization":auth_token_new_1},
+        content_type="application/json")
+
+    data = json.loads(response.data.decode())
+    assert "No such project exists in the scope of the user" in data["msg"]
+    assert response.status_code == 404
+
+def test_project_delete_valid_project(client, auth_token_new_1):
+    """
+    Tests /project/delete API using project id
+    """
+    response = client.delete(
+        "api/project/delete",
+        data=json.dumps(
+            {
+                "projectID":"1",
+            }
+        ),
+        headers={"authorization":auth_token_new_1},
+        content_type="application/json")
+
+    data = json.loads(response.data.decode())
+    assert "Project and related issues deleted successfully" in data["msg"]
+    assert response.status_code == 200
+
+def test_project_delete_out_of_scope_project(client, auth_token_new_1):
+    """
+    Tests /project/delete API using out of scope project id
+    """
+    response = client.delete(
+        "api/project/delete",
+        data=json.dumps(
+            {
+                "projectID":"3",
+            }
+        ),
+        headers={"authorization":auth_token_new_1},
+        content_type="application/json")
+
+    data = json.loads(response.data.decode())
+    assert "No such project exists in the scope of the user" in data["msg"]
+    assert response.status_code == 404
